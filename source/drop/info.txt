@@ -1,0 +1,4 @@
+ceylon compile --rep aether --maven-overrides=overrides.xml -d > toto.txt 2<&1
+
+ceylon compile --rep aether --maven-overrides=build/overrides.xml
+ceylon run --rep aether --maven-overrides=build/overrides.xml  drop

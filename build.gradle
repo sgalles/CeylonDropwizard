@@ -1,0 +1,64 @@
+// usage  : save this script as 'build.gradle' and run 'gradle' in the directory of this script
+defaultTasks  'generateOverrides'
+configurations { compile }
+def rootModule = [ group: 'com.yammer.dropwizard', name: 'dropwizard-core', version: '0.6.2' ]
+dependencies{
+    //compile 'com.yammer.dropwizard:dropwizard-core:0.6.2'  
+     compile rootModule
+    //compile 'com.octo.android.robospice:robospice-spring-android:1.4.9'
+    //compile 'org.hibernate:hibernate-core:4.3.0.Final'    
+}
+
+repositories{ mavenCentral() }
+
+class Module { 
+    def dependencies = [] as Set
+    ResolvedArtifact artifact
+}
+
+
+task generateOverrides{
+
+    doLast{
+        
+        println "***** Use the following import directives :"
+        println """import "${rootModule.group}:${rootModule.name}" "${rootModule.version};\n"""
+        
+        def map = [:].withDefault{ new Module() }
+        def recurse
+        recurse = { ResolvedDependency dep ->
+             Module mod = map[dep.module.id]
+            if(dep.moduleArtifacts.size()>0){
+                mod.artifact = dep.moduleArtifacts.iterator().next()
+            }
+            dep.getChildren().each { def childDep ->    
+                mod.dependencies << childDep.module.id
+                recurse childDep
+            }
+        }
+        
+        // pull dependencies
+        
+        configurations.compile.resolvedConfiguration.firstLevelModuleDependencies.each { ResolvedDependency rootDep ->
+            recurse rootDep 
+       }
+       println "*****"
+      
+        File xmlFile = file("$buildDir/overrides.xml")
+        xmlFile.parentFile.mkdir()
+        file(xmlFile).withWriter { def w ->
+                w.write("""<maven-overrides>\n""")
+                map.each { ModuleVersionIdentifier outerId, Module outerModule ->
+                    w.write("""    <artifact groupId="${outerId.group}" artifactId="${outerId.name}" version="${outerId.version}">\n""")
+                     map.each { ModuleVersionIdentifier innerId, Module innerModule ->
+                        if(outerId != innerId){
+                            w.write("""        <!--add groupId="${innerId.group}" artifactId="${innerId.name}" version="${innerId.version}" shared="true"/-->\n""")
+                        }
+                    }
+                    w.write("""    </artifact>\n""")
+                }
+                w.write("""</maven-overrides>\n""")
+         } 
+        
+    }
+}
